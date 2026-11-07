@@ -1,0 +1,39 @@
+{
+  "name": "pulsecrm-server",
+  "version": "1.0.0",
+  "description": "PulseCRM API, webhooks, workers, and scheduled jobs",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "nodemon index",
+    "dev:worker": "nodemon worker.js",
+    "start:web": "node index.js",
+    "start:worker": "node worker.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@bull-board/api": "^9.10.1",
+    "@bull-board/express": "^9.10.1",
+    "axios": "^1.18.1",
+    "bcrypt": "^6.0.0",
+    "bullmq": "^6.3.8",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.22.0",
+    "redis": "^6.1.0",
+    "uuid": "^14.0.1",
+    "uuid4": "^2.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
