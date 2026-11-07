@@ -1,0 +1,10 @@
+# docker-compose.override.yml — DEV-ONLY conveniences. Compose merges this file
+# automatically on `docker compose up` unless -f is passed.
+# Ports come from the stage env file (.env.dev by default, via the .env symlink).
+services:
+  dashboard:
+    ports:
+      - "${DASHBOARD_PORT:-3001}:3001" # browser access to the CRM and treasurer UI
+  bullboard:
+    ports:
+      - "127.0.0.1:${BULLBOARD_PORT:-3030}:3000" # localhost-only: image has no auth

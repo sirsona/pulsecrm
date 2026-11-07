@@ -1,0 +1,174 @@
+# PulseCRM production-shaped Docker Compose stack.
+# Stage selection:
+#   dev  : docker compose up -d                       (auto-merges override + .env symlink)
+#   test : docker compose --env-file .env.test up -d  (isolated project/db/ports)
+#   prod : docker compose -f docker-compose.yml up -d (no override, no dev ports)
+
+# Shared log rotation: 10 MB x 5 files per container.
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    # verified: host Postgres is 18.6 — matching major keeps pg_dump/restore compatible
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+    volumes:
+      # PG18 layout: PGDATA is /var/lib/postgresql/18/docker (verified via image inspect)
+      - pg-data:/var/lib/postgresql
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,z
+    networks: [internal] # verified: DB never leaves the internal network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d ${POSTGRES_DB:-crm}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks: [internal] # verified: only api/worker/bullboard talk to Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    logging: *default-logging
+
+  api:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env # secrets stay out of this file
+    environment: # these override env_file values
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: crm_user
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-crm}
+      REDIS_URL: redis://redis:6379
+      RUN_CRON_IN_PROCESS: "false" # cron + queues live in the worker service
+      RUN_QUEUES_IN_PROCESS: "false"
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me}
+      TREASURER_URL: ${TREASURER_URL:-http://localhost:3001}
+    ports:
+      - "${API_PORT:-5000}:5000" # verified: env.PORT defaults to 5000
+    volumes:
+      - reports-data:/app/reports # PDFs written here, read by the worker
+    networks: [internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    logging: *default-logging
+
+  worker:
+    build: ./server # same image as api (layer cache makes it instant)
+    restart: unless-stopped
+    command: ["node", "worker.js"]
+    env_file: ./server/.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-crm}
+      REDIS_URL: redis://redis:6379
+      RUN_CRON_IN_PROCESS: "true" # leader election keeps a single cron owner
+      RUN_QUEUES_IN_PROCESS: "true"
+    volumes:
+      - reports-data:/app/reports
+    networks: [internal] # verified: background process, never public
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    logging: *default-logging
+
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: crm_user
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-crm}
+      EXPRESS_URL: http://api:5000 # compose DNS, not localhost
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me}
+    networks: [internal] # browser access via the published port, never directly
+    depends_on:
+      postgres: { condition: service_healthy }
+      api: { condition: service_started }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { cpus: "0.75", memory: 512M }
+    logging: *default-logging
+
+  bullboard:
+    image: deadly0/bull-board
+    profiles: ["dev"] # optional service: docker compose --profile dev up -d
+    restart: unless-stopped
+    environment:
+      # verified from the image's Docker Hub docs (REDIS_* + BULL_VERSION=BULLMQ)
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      BULL_VERSION: BULLMQ
+      BULL_PREFIX: bull
+    networks: [internal] # verified: needs redis only; port published in override
+    depends_on:
+      redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128M }
+    logging: *default-logging
+
+networks:
+  internal: # postgres, redis, api, worker, dashboard, bullboard
+
+volumes:
+  pg-data:
+  redis-data:
+  reports-data:
