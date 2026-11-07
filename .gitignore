@@ -1,0 +1,25 @@
+# Secrets — never commit
+.env
+.env.dev
+.env.test
+server/.env
+dashboard/.env.local
+
+# Backups contain real data
+backups/
+
+# Node
+node_modules/
+server/node_modules/
+dashboard/node_modules/
+
+# Local artifacts
+*.log
+server/reports/
+dashboard/.next/
+
+# Local editor/tooling files
+.vscode/
+AGENTS.md
+CLAUDE.md
+server/index copy.js

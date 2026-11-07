@@ -1,0 +1,20 @@
+{
+  "name": "pulsecrm",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PulseCRM — multi-channel CRM and messaging platform for WhatsApp and Telegram",
+  "license": "MIT",
+  "scripts": {
+    "up": "docker compose up -d",
+    "up:dev": "docker compose --profile dev up -d",
+    "down": "docker compose down",
+    "down:volumes": "docker compose down -v",
+    "build": "docker compose build",
+    "ps": "docker compose ps",
+    "logs": "docker compose logs -f api",
+    "logs:worker": "docker compose logs -f worker",
+    "logs:dashboard": "docker compose logs -f dashboard",
+    "db:shell": "docker compose exec postgres psql -U crm_user -d crm",
+    "redis:shell": "docker compose exec redis redis-cli"
+  }
+}
