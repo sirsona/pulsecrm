@@ -2,7 +2,7 @@
   "name": "pulsecrm",
   "private": true,
   "version": "1.0.0",
-  "description": "PulseCRM — multi-channel CRM and messaging platform for WhatsApp and Telegram",
+  "description": "PulseCRM — multi-channel CRM and messaging platform for WhatsApp, Telegram, and USSD",
   "license": "MIT",
   "scripts": {
     "up": "docker compose up -d",

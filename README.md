@@ -1,11 +1,12 @@
 # PulseCRM
 
-**A multi-channel CRM and messaging platform for WhatsApp and Telegram.**
+**A multi-channel CRM and messaging platform for WhatsApp, Telegram, and USSD.**
 
 PulseCRM brings lead capture, customer conversations, WhatsApp Cloud API webhooks,
-Telegram workflows, payment reconciliation, and chama savings operations into one
-operations dashboard. The platform is built as a Node.js/Express API, a Next.js
-dashboard, PostgreSQL, Redis-backed job queues, and Docker Compose services.
+Telegram workflows, USSD support, payment reconciliation, and chama savings
+operations into one operations dashboard. The platform is built as a
+Node.js/Express API, a Next.js dashboard, PostgreSQL, Redis-backed job queues,
+and Docker Compose services.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#license)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
@@ -20,6 +21,8 @@ PulseCRM handles the operational side of a small business or community:
 - Capture and qualify inbound WhatsApp leads through an automated conversation
   flow.
 - Manage leads, assignments, and conversation history from a CRM dashboard.
+- Serve feature-phone users through a bilingual USSD support flow with
+  persistent sessions and draft recovery.
 - Send WhatsApp, Telegram, and SMS notifications through durable BullMQ queues.
 - Run Telegram-based chama (savings group) workflows, including contributions,
   fines, cycle closing, and treasurer reporting.
@@ -40,6 +43,13 @@ PulseCRM handles the operational side of a small business or community:
 - CRM dashboard with search, assignment filters, lead detail, and live status
   changes.
 - Interactive WhatsApp lists for inquiry selection.
+
+### USSD support
+
+- Africa's Talking-compatible `POST /ussd` callback.
+- English and Kiswahili menus for feature-phone users.
+- Redis-backed sessions with a five-minute TTL and longer-lived drafts.
+- Ticket creation and support lookup through the shared CRM ticket repository.
 
 ### Telegram and chama operations
 
@@ -99,7 +109,7 @@ server-rendered views.
 | Dashboard | Next.js 16, React 19, Tailwind CSS 4 |
 | Database | PostgreSQL 16 |
 | Queues | Redis 7, BullMQ 6 |
-| Messaging | Meta WhatsApp Cloud API, Telegram Bot API, Africa's Talking SMS |
+| Messaging | Meta WhatsApp Cloud API, Telegram Bot API, Africa's Talking USSD and SMS |
 | Payments | Paystack checkout and webhooks |
 | Auth | JWT for CRM users, bcrypt passwords, one-time HttpOnly sessions for treasurers |
 | Infrastructure | Docker Compose, health checks, log rotation, Postgres backups |
@@ -117,7 +127,7 @@ server-rendered views.
 │   ├── queues/             BullMQ producers
 │   ├── repositories/       SQL data access
 │   ├── routes/             API and webhook routes
-│   ├── services/           CRM, WhatsApp, Telegram, chama, payments
+│   ├── services/           CRM, WhatsApp, Telegram, USSD, chama, payments
 │   └── workers/            Queue consumers
 ├── dashboard/              Next.js CRM and treasurer dashboard
 │   ├── app/                App Router routes and API handlers
@@ -135,7 +145,7 @@ server-rendered views.
 - Docker Engine with Compose v2
 - Node.js 22+ for local development without Docker
 - A Meta WhatsApp Cloud API app, Telegram bot token, Paystack test key, and
-  Africa's Talking account for full functionality
+  Africa's Talking account for USSD and SMS functionality
 
 ### Run the stack
 
@@ -227,7 +237,7 @@ generated reports, and build output.
 | `TELEGRAM_BOT_TOKEN` | Telegram bot authentication |
 | `TELEGRAM_WEBHOOK_URL` | Public Telegram webhook URL |
 | `PAYSTACK_SECRET_KEY` | Paystack API and webhook verification |
-| `AT_USERNAME`, `AT_API_KEY` | Africa's Talking SMS |
+| `AT_USERNAME`, `AT_API_KEY` | Africa's Talking USSD and SMS |
 | `INTERNAL_API_SECRET` | Secret shared by the dashboard and internal chama endpoints |
 
 ## Webhook setup
@@ -245,6 +255,15 @@ generated reports, and build output.
 - Set `TELEGRAM_WEBHOOK_URL` to the same URL so the bot registers it on boot.
 - Set `TELEGRAM_WEBHOOK_SECRET` to require the
   `X-Telegram-Bot-Api-Secret-Token` header.
+
+### USSD
+
+- Callback URL: `https://<api-host>/ussd`
+- Configure the URL as a form-encoded callback in Africa's Talking.
+- The endpoint receives `sessionId`, `phoneNumber`, and `text`, then returns
+  `CON` or `END` responses.
+- Session state is stored in Redis for five minutes; drafts remain available
+  for ten minutes.
 
 ### Paystack
 
@@ -269,6 +288,7 @@ signature rejection.
 | `PATCH /api/leads/:id/assign` | Reassign a lead (admin) |
 | `GET /api/leads/stats` | CRM metrics |
 | `POST /api/telegram/broadcast` | Admin group broadcast |
+| `POST /ussd` | Africa's Talking USSD callback |
 | `POST /api/cron/trigger/:jobName` | Trigger a scheduled job |
 | `GET /api/cron/runs`, `GET /api/cron/jobs` | Cron history and registry |
 | `POST /api/chama/:chatId/close-cycle` | Internal cycle close |
